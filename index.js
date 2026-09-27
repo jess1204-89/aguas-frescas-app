@@ -1,3 +1,4 @@
+const bcrypt = require('bcrypt');
 const express = require('express');
 const cors = require('cors');
 require('dotenv').config();
@@ -17,6 +18,34 @@ app.get('/tiendas', async (req, res) => {
   }
 
   res.json(data);
+});
+app.post('/login', async (req, res) => {
+  const { email, password } = req.body;
+
+  const { data: usuario, error } = await supabase
+    .from('usuarios')
+    .select('*')
+    .eq('email', email)
+    .single();
+
+  if (error || !usuario) {
+    return res.status(401).json({ error: 'Usuario no encontrado' });
+  }
+
+  const passwordValida = await bcrypt.compare(password, usuario.password_hash);
+
+  if (!passwordValida) {
+    return res.status(401).json({ error: 'Contraseña incorrecta' });
+  }
+
+  res.json({
+    mensaje: 'Login exitoso',
+    usuario: {
+      id: usuario.id,
+      nombre: usuario.nombre,
+      rol: usuario.rol
+    }
+  });
 });
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
