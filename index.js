@@ -138,6 +138,39 @@ app.post('/ventas', async (req, res) => {
 
   res.json({ mensaje: 'Venta registrada', venta });
 });
+app.post('/visitas/:visitaId/pago', async (req, res) => {
+  const { visitaId } = req.params;
+  const { monto_recibido } = req.body;
+
+  const { data: ventas, error: errorVentas } = await supabase
+    .from('ventas')
+    .select('subtotal')
+    .eq('visita_id', visitaId);
+
+  if (errorVentas) {
+    return res.status(500).json({ error: errorVentas.message });
+  }
+
+  const total_venta = ventas.reduce((suma, v) => suma + Number(v.subtotal), 0);
+
+  if (monto_recibido < total_venta) {
+    return res.status(400).json({ error: 'El monto recibido es menor al total de la venta' });
+  }
+
+  const cambio = monto_recibido - total_venta;
+
+  const { data: pago, error: errorPago } = await supabase
+    .from('pagos')
+    .insert({ visita_id: visitaId, total_venta, monto_recibido, cambio })
+    .select()
+    .single();
+
+  if (errorPago) {
+    return res.status(500).json({ error: errorPago.message });
+  }
+
+  res.json({ mensaje: 'Pago registrado', pago });
+});
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`Servidor corriendo en http://localhost:${PORT}`);
