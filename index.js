@@ -186,6 +186,78 @@ app.post('/devoluciones', async (req, res) => {
 
   res.json({ mensaje: 'Devolucion registrada', devolucion });
 });
+app.get('/rutas/:rutaId/cierre', async (req, res) => {
+  const { rutaId } = req.params;
+
+  // 1. Todas las tiendas de esta ruta
+  const { data: rutaTiendas, error: errorRT } = await supabase
+    .from('ruta_tiendas')
+    .select('id, orden, tiendas ( nombre )')
+    .eq('ruta_id', rutaId);
+
+  if (errorRT) return res.status(500).json({ error: errorRT.message });
+
+  const rutaTiendaIds = rutaTiendas.map(rt => rt.id);
+
+  // 2. Todas las visitas de esas tiendas
+  const { data: visitas, error: errorV } = await supabase
+    .from('visitas')
+    .select('id, ruta_tienda_id, hora_llegada, hora_salida')
+    .in('ruta_tienda_id', rutaTiendaIds);
+
+  if (errorV) return res.status(500).json({ error: errorV.message });
+
+  const visitaIds = visitas.map(v => v.id);
+
+  // 3. Todas las ventas de esas visitas, con el nombre del producto
+  const { data: ventas, error: errorVe } = await supabase
+    .from('ventas')
+    .select('visita_id, cantidad, subtotal, productos ( nombre )')
+    .in('visita_id', visitaIds);
+
+  if (errorVe) return res.status(500).json({ error: errorVe.message });
+
+  // 4. Todas las devoluciones de esas visitas
+  const { data: devoluciones, error: errorD } = await supabase
+    .from('devoluciones')
+    .select('visita_id, cantidad, motivo, productos ( nombre )')
+    .in('visita_id', visitaIds);
+
+  if (errorD) return res.status(500).json({ error: errorD.message });
+
+  // --- A partir de aquí, ya no hablamos con la base de datos, solo calculamos ---
+
+  const totalVendido = ventas.reduce((suma, v) => suma + Number(v.subtotal), 0);
+  const tiendasVisitadas = visitas.filter(v => v.hora_llegada).length;
+  const tiendasSinVenta = rutaTiendas.length - new Set(ventas.map(v => v.visita_id)).size;
+
+  // Ventas agrupadas por nombre de producto
+  const ventasPorProducto = {};
+  ventas.forEach(v => {
+    const nombre = v.productos.nombre;
+    ventasPorProducto[nombre] = (ventasPorProducto[nombre] || 0) + v.cantidad;
+  });
+
+  const productos = Object.entries(ventasPorProducto);
+  const productoMasVendido = productos.length
+    ? productos.reduce((max, p) => (p[1] > max[1] ? p : max))
+    : null;
+  const productoMenosVendido = productos.length
+    ? productos.reduce((min, p) => (p[1] < min[1] ? p : min))
+    : null;
+
+  res.json({
+    ruta_id: rutaId,
+    total_vendido: totalVendido,
+    tiendas_totales: rutaTiendas.length,
+    tiendas_visitadas: tiendasVisitadas,
+    tiendas_sin_venta: tiendasSinVenta,
+    ventas_por_producto: ventasPorProducto,
+    producto_mas_vendido: productoMasVendido ? { nombre: productoMasVendido[0], cantidad: productoMasVendido[1] } : null,
+    producto_menos_vendido: productoMenosVendido ? { nombre: productoMenosVendido[0], cantidad: productoMenosVendido[1] } : null,
+    devoluciones
+  });
+});
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`Servidor corriendo en http://localhost:${PORT}`);
