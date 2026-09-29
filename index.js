@@ -47,6 +47,32 @@ app.post('/login', async (req, res) => {
     }
   });
 });
+app.get('/rutas/hoy/:usuarioId', async (req, res) => {
+  const { usuarioId } = req.params;
+
+  const { data: ruta, error: errorRuta } = await supabase
+    .from('rutas')
+    .select('id, fecha')
+    .eq('usuario_id', usuarioId)
+    .eq('fecha', new Date().toLocaleDateString('en-CA'))
+    .single();
+
+  if (errorRuta || !ruta) {
+    return res.status(404).json({ error: 'No tienes ruta asignada hoy' });
+  }
+
+  const { data: tiendas, error: errorTiendas } = await supabase
+    .from('ruta_tiendas')
+    .select('orden, tiendas ( id, nombre, direccion, lat, lng )')
+    .eq('ruta_id', ruta.id)
+    .order('orden', { ascending: true });
+
+  if (errorTiendas) {
+    return res.status(500).json({ error: errorTiendas.message });
+  }
+
+  res.json({ ruta_id: ruta.id, fecha: ruta.fecha, tiendas });
+});
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`Servidor corriendo en http://localhost:${PORT}`);
