@@ -105,6 +105,39 @@ app.post('/visitas/:visitaId/finalizar', async (req, res) => {
 
   res.json({ mensaje: 'Visita finalizada', visita: data });
 });
+app.post('/ventas', async (req, res) => {
+  const { visita_id, producto_id, cantidad } = req.body;
+
+  const { data: producto, error: errorProducto } = await supabase
+    .from('productos')
+    .select('precio')
+    .eq('id', producto_id)
+    .single();
+
+  if (errorProducto || !producto) {
+    return res.status(404).json({ error: 'Producto no encontrado' });
+  }
+
+  const subtotal = producto.precio * cantidad;
+
+  const { data: venta, error: errorVenta } = await supabase
+    .from('ventas')
+    .insert({
+      visita_id,
+      producto_id,
+      cantidad,
+      precio_unitario: producto.precio,
+      subtotal
+    })
+    .select()
+    .single();
+
+  if (errorVenta) {
+    return res.status(500).json({ error: errorVenta.message });
+  }
+
+  res.json({ mensaje: 'Venta registrada', venta });
+});
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`Servidor corriendo en http://localhost:${PORT}`);
