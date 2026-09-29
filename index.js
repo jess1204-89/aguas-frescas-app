@@ -171,6 +171,21 @@ app.post('/visitas/:visitaId/pago', async (req, res) => {
 
   res.json({ mensaje: 'Pago registrado', pago });
 });
+app.post('/devoluciones', async (req, res) => {
+  const { visita_id, producto_id, cantidad, motivo } = req.body;
+
+  const { data: devolucion, error } = await supabase
+    .from('devoluciones')
+    .insert({ visita_id, producto_id, cantidad, motivo })
+    .select()
+    .single();
+
+  if (error) {
+    return res.status(500).json({ error: error.message });
+  }
+
+  res.json({ mensaje: 'Devolucion registrada', devolucion });
+});
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`Servidor corriendo en http://localhost:${PORT}`);
