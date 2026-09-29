@@ -73,6 +73,38 @@ app.get('/rutas/hoy/:usuarioId', async (req, res) => {
 
   res.json({ ruta_id: ruta.id, fecha: ruta.fecha, tiendas });
 });
+app.post('/visitas/iniciar', async (req, res) => {
+  const { ruta_tienda_id } = req.body;
+
+  const { data, error } = await supabase
+    .from('visitas')
+    .insert({ ruta_tienda_id, hora_llegada: new Date().toISOString() })
+    .select()
+    .single();
+
+  if (error) {
+    return res.status(500).json({ error: error.message });
+  }
+
+  res.json({ mensaje: 'Visita iniciada', visita: data });
+});
+
+app.post('/visitas/:visitaId/finalizar', async (req, res) => {
+  const { visitaId } = req.params;
+
+  const { data, error } = await supabase
+    .from('visitas')
+    .update({ hora_salida: new Date().toISOString() })
+    .eq('id', visitaId)
+    .select()
+    .single();
+
+  if (error) {
+    return res.status(500).json({ error: error.message });
+  }
+
+  res.json({ mensaje: 'Visita finalizada', visita: data });
+});
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`Servidor corriendo en http://localhost:${PORT}`);
