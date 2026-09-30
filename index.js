@@ -279,6 +279,58 @@ app.post('/rutas/:rutaId/inventario', async (req, res) => {
 
   res.json({ mensaje: 'Inventario inicial registrado', inventario: data });
 });
+app.get('/rutas/:rutaId/inventario/final', async (req, res) => {
+  const { rutaId } = req.params;
+
+  const { data: inventarioInicial, error: errorInv } = await supabase
+    .from('inventario_ruta')
+    .select('producto_id, cantidad_inicial, productos ( nombre )')
+    .eq('ruta_id', rutaId);
+
+  if (errorInv) return res.status(500).json({ error: errorInv.message });
+
+  const { data: rutaTiendas } = await supabase
+    .from('ruta_tiendas')
+    .select('id')
+    .eq('ruta_id', rutaId);
+  const rutaTiendaIds = rutaTiendas.map(rt => rt.id);
+
+  const { data: visitas } = await supabase
+    .from('visitas')
+    .select('id')
+    .in('ruta_tienda_id', rutaTiendaIds);
+  const visitaIds = visitas.map(v => v.id);
+
+  const { data: ventas } = await supabase
+    .from('ventas')
+    .select('producto_id, cantidad')
+    .in('visita_id', visitaIds);
+
+  const { data: devoluciones } = await supabase
+    .from('devoluciones')
+    .select('producto_id, cantidad')
+    .in('visita_id', visitaIds);
+
+  const resultado = inventarioInicial.map(item => {
+    const vendido = ventas
+      .filter(v => v.producto_id === item.producto_id)
+      .reduce((s, v) => s + v.cantidad, 0);
+
+    const devuelto = devoluciones
+      .filter(d => d.producto_id === item.producto_id)
+      .reduce((s, d) => s + d.cantidad, 0);
+
+    return {
+      producto: item.productos.nombre,
+      cantidad_inicial: item.cantidad_inicial,
+      vendido,
+      devuelto,
+      existencia_esperada: item.cantidad_inicial - vendido + devuelto
+    };
+  });
+
+  res.json({ ruta_id: rutaId, inventario: resultado });
+});
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`Servidor corriendo en http://localhost:${PORT}`);
