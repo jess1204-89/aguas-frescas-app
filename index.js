@@ -258,6 +258,27 @@ app.get('/rutas/:rutaId/cierre', async (req, res) => {
     devoluciones
   });
 });
+app.post('/rutas/:rutaId/inventario', async (req, res) => {
+  const { rutaId } = req.params;
+  const { productos } = req.body;
+
+  const filas = productos.map(p => ({
+    ruta_id: rutaId,
+    producto_id: p.producto_id,
+    cantidad_inicial: p.cantidad_inicial
+  }));
+
+  const { data, error } = await supabase
+    .from('inventario_ruta')
+    .insert(filas)
+    .select();
+
+  if (error) {
+    return res.status(500).json({ error: error.message });
+  }
+
+  res.json({ mensaje: 'Inventario inicial registrado', inventario: data });
+});
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`Servidor corriendo en http://localhost:${PORT}`);
